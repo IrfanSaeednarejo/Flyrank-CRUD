@@ -22,7 +22,9 @@ let tasks = [
 
 //get Data All
 const getData = asyncHandler(async (request, response) => {
-    const dataInitial = 'Hello Server'
+    if (tasks.length === 0) {
+        throw new ApiError(404, "No tasks found");
+    }
     return response
         .status(200)
         .json(new ApiResponse(200, tasks, "Success"))
@@ -105,8 +107,17 @@ app.get("/health", asyncHandler(async (request, response) => {
         .status(200)
         .json(new ApiResponse(200, { status: "ok" }, "Server is healthy"));
 }));
+const getStats = asyncHandler(async (request, response) => {
+    const total = tasks.length;
+    const done = tasks.filter((t) => t.done).length;
+    const open = total - done;
+    return response
+        .status(200)
+        .json(new ApiResponse(200, { total, done, open }, "Success"));
+});
 app.get("/tasks", getData);
 app.get("/tasks/:id", getDataById)
+app.get("/stats", getStats);
 app.post("/tasks", setData);
 app.delete("/tasks/:id", deleteData);
 app.put("/tasks/:id", updateData);
