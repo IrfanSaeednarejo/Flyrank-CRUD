@@ -22,7 +22,6 @@ let tasks = [
 
 //get Data All
 const getData = asyncHandler(async (request, response) => {
-    console.log(" get Data");
     const dataInitial = 'Hello Server'
     return response
         .status(200)
@@ -96,7 +95,6 @@ const updateData = asyncHandler(async (request, response) => {
 
 // App routes
 app.get("/", asyncHandler(async (request, response) => {
-    console.log("Working");
     const dataInitial = { "name": "Task API", "version": "1.0", "endpoints": ["/tasks"] };
     return response
         .status(200)
