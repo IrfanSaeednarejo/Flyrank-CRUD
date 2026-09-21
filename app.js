@@ -1,9 +1,9 @@
 import { ApiError } from "./Utils/apiError.js";
 import { ApiResponse } from "./Utils/apiResponse.js";
 import { asyncHandler } from "./Utils/asyncHandler.js";
-import swagger from "swagger-ui-express"
-
 import express from "express";
+import swaggerUi from "swagger-ui-express";
+import openapiSpec from "./openapi.json" with { type: "json" };
 const app = express();
 const PORT = 3000;
 app.use(express.json());
@@ -65,7 +65,7 @@ const deleteData = asyncHandler(async (request, response) => {
 
     return response
         .status(200)
-        .json(new ApiResponse(200, updatedTasks, "Task deleted successfully"))
+        .json(new ApiResponse(204, updatedTasks, "Task deleted successfully"))
 })
 
 const updateData = asyncHandler(async (request, response) => {
@@ -102,12 +102,17 @@ app.get("/", asyncHandler(async (request, response) => {
         .status(200)
         .json(new ApiResponse(200, dataInitial, "Welcome to the Task API"))
 }))
+app.get("/health", asyncHandler(async (request, response) => {
+    return response
+        .status(200)
+        .json(new ApiResponse(200, { status: "ok" }, "Server is healthy"));
+}));
 app.get("/tasks", getData);
 app.get("/tasks/:id", getDataById)
 app.post("/tasks", setData);
 app.delete("/tasks/:id", deleteData);
 app.put("/tasks/:id", updateData);
-
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(openapiSpec));
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
