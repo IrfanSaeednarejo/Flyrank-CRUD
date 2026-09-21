@@ -6,7 +6,7 @@ import swagger from "swagger-ui-express"
 import express from "express";
 const app = express();
 const PORT = 3000;
-
+app.use(express.json());
 let tasks = [
     { id: 1, title: "Buy milk", done: false },
     { id: 2, title: "Walk the dog", done: true },
@@ -20,7 +20,7 @@ let tasks = [
     { id: 10, title: "Book dentist appointment", done: false }
 ];
 
-
+//get Data All
 const getData = asyncHandler(async (request, response) => {
     console.log(" get Data");
     const dataInitial = 'Hello Server'
@@ -28,6 +28,8 @@ const getData = asyncHandler(async (request, response) => {
         .status(200)
         .json(new ApiResponse(200, tasks, "Success"))
 })
+
+//get Data by ID
 const getDataById = asyncHandler(async (request, response) => {
     const { id } = request.params;
     const task = tasks.find((task) => task.id == id);
@@ -38,12 +40,23 @@ const getDataById = asyncHandler(async (request, response) => {
         .status(200)
         .json(new ApiResponse(200, task, "Success"))
 })
+
+//POST DATA
 const setData = (request, response) => {
-    console.log(" setData");
+    const { title } = request.body;
+    if (!title) {
+        throw new ApiError(400, "Title is required");
+    }
+    const task = { id: tasks.length + 1, title, done: false };
+    const updatedTask = tasks.push(task);
+    tasks = updatedTask;
+    return response
+        .status(201)
+        .json(new ApiResponse(201, task, "Task created successfully"))
 }
 
 async function deleteData(request, response) {
-    console.log(" delete Data");
+    console.log(" Delete Data");
 }
 
 async function updateData(request, response) {
