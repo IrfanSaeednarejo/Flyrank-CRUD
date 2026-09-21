@@ -32,7 +32,7 @@ const getData = asyncHandler(async (request, response) => {
 //get Data by ID
 const getDataById = asyncHandler(async (request, response) => {
     const { id } = request.params;
-    const task = tasks.find((task) => task.id == id);
+    const task = tasks.find((task) => task.id === Number(id));
     if (!task) {
         throw new ApiError(404, `Task ${id} not found`);
     }
@@ -42,26 +42,53 @@ const getDataById = asyncHandler(async (request, response) => {
 })
 
 //POST DATA
-const setData = (request, response) => {
+const setData = asyncHandler(async (request, response) => {
     const { title } = request.body;
     if (!title) {
         throw new ApiError(400, "Title is required");
     }
     const task = { id: tasks.length + 1, title, done: false };
-    const updatedTask = tasks.push(task);
-    tasks = updatedTask;
+    const updatedTasks = [...tasks, task];
+    tasks = updatedTasks;
     return response
         .status(201)
         .json(new ApiResponse(201, task, "Task created successfully"))
-}
+})
 
-async function deleteData(request, response) {
-    console.log(" Delete Data");
-}
+const deleteData = asyncHandler(async (request, response) => {
+    const { id } = request.params;
+    if (!id) {
+        throw new ApiError(400, "Id is required");
+    }
+    let updatedTasks = tasks.filter((task) => task.id !== Number(id));
+    tasks = updatedTasks;
 
-async function updateData(request, response) {
-    console.log(" update Data");
-}
+    return response
+        .status(200)
+        .json(new ApiResponse(200, updatedTasks, "Task deleted successfully"))
+})
+
+const updateData = asyncHandler(async (request, response) => {
+    const { id } = request.params;
+    const { title, done } = request.body;
+
+    const idTask = tasks.find((task) => task.id === Number(id));
+
+    if (title === undefined && done === undefined) {
+        throw new ApiError(400, "Nothing to update");
+    }
+    if (!idTask) {
+        throw new ApiError(404, `Task ${id} not found`);
+    }
+    if (title !== undefined) idTask.title = title;
+    if (done !== undefined) idTask.done = done;
+
+    const updatedTasks = tasks.map((task) => task.id === idTask.id ? idTask : task);
+    tasks = updatedTasks;
+    return response
+        .status(200)
+        .json(new ApiResponse(200, idTask, "Task updated successfully"))
+})
 
 
 
