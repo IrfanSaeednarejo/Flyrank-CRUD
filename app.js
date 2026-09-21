@@ -1,6 +1,7 @@
 import { ApiError } from "./Utils/apiError.js";
 import { ApiResponse } from "./Utils/apiResponse.js";
 import { asyncHandler } from "./Utils/asyncHandler.js";
+import swagger from "swagger-ui-express"
 
 import express from "express";
 const app = express();
@@ -8,14 +9,14 @@ const PORT = 3000;
 
 const data = []
 
-const getData = asyncHandler(
-    async (request, response) => {
-        console.log(" get Data");
-        const dataInitial = 'Hello Server'
-        return response
-            .status(200)
-            .json(new ApiResponse(200, dataInitial, "Success"))
-    })
+
+const getData = asyncHandler(async (request, response) => {
+    console.log(" get Data");
+    const dataInitial = 'Hello Server'
+    return response
+        .status(200)
+        .json(new ApiResponse(200, dataInitial, "Success"))
+})
 
 const setData = (request, response) => {
     console.log(" setData");
@@ -34,6 +35,13 @@ async function updateData(request, response) {
 
 
 // App routes
+app.get("/", asyncHandler(async (request, response) => {
+    console.log("Working");
+    const dataInitial = { "name": "Task API", "version": "1.0", "endpoints": ["/tasks"] };
+    return response
+        .status(200)
+        .json(new ApiResponse(200, dataInitial, "Welcome to the Task API"))
+}))
 app.get("/tasks", getData);
 app.post("/tasks", setData);
 app.delete("/tasks/:id", deleteData);
