@@ -110,8 +110,6 @@ const setData = asyncHandler(async (req: Request, res: Response) => {
 
 
 
-
-
 app.get('/', (_req, res) => {
     res.status(200).json(
         new ApiResponse(
@@ -128,8 +126,8 @@ app.get('/health', (_req, res) => {
 
 app.get('/tasks', getData);
 app.get('/tasks/:id', getDataById);
-app.get('/stats', getStats);
-// app.post('/tasks', setData);
+// app.get('/stats', getStats);
+app.post('/tasks', setData);
 // app.put('/tasks/:id', updateData);
 // app.delete('/tasks/:id', deleteData);
 
