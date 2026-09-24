@@ -107,6 +107,82 @@ const setData = asyncHandler(async (req: Request, res: Response) => {
 });
 
 // PUT /tasks/:id
+const updateData = asyncHandler(async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        throw new ApiError(400, 'Invalid task id');
+    }
+
+    const body = req.body as { title?: unknown; done?: unknown };
+    const updates: updateTask = {};
+
+    if (body.title !== undefined) {
+        if (typeof body.title !== 'string' || body.title.trim().length === 0) {
+            throw new ApiError(400, 'Title must be a non-empty string');
+        }
+        if (body.title.length > 255) {
+            throw new ApiError(400, 'Title must be 255 characters or fewer');
+        }
+        updates.title = body.title.trim();
+    }
+
+    if (body.done !== undefined) {
+        if (typeof body.done !== 'boolean') {
+            throw new ApiError(400, 'done must be a boolean');
+        }
+        updates.done = body.done;
+    }
+
+    if (Object.keys(updates).length === 0) {
+        throw new ApiError(400, 'Nothing to update');
+    }
+
+    const [updated] = await db
+        .update(task)
+        .set(updates)
+        .where(eq(task.id, id))
+        .returning();
+
+    if (!updated) {
+        throw new ApiError(404, `Task ${id} not found`);
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, updated, 'Task updated successfully'));
+});
+
+// DELETE /tasks/:id
+const deleteData = asyncHandler(async (req: Request, res: Response) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        throw new ApiError(400, 'Invalid task id');
+    }
+
+    const [deleted] = await db
+        .delete(task)
+        .where(eq(task.id, id))
+        .returning();
+
+    if (!deleted) {
+        throw new ApiError(404, `Task ${id} not found`);
+    }
+    return res
+        .status(200)
+        .json(new ApiResponse(200, deleted, 'Task deleted successfully'));
+});
+
+// GET /stats
+const getStats = asyncHandler(async (_req: Request, res: Response) => {
+    const all = await db.select().from(task);
+    const total = all.length;
+    const done = all.filter((t) => t.done).length;
+    const open = total - done;
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { total, done, open }, 'Success'));
+});
+
 
 
 
@@ -126,10 +202,10 @@ app.get('/health', (_req, res) => {
 
 app.get('/tasks', getData);
 app.get('/tasks/:id', getDataById);
-// app.get('/stats', getStats);
+app.get('/stats', getStats);
 app.post('/tasks', setData);
-// app.put('/tasks/:id', updateData);
-// app.delete('/tasks/:id', deleteData);
+app.put('/tasks/:id', updateData);
+app.delete('/tasks/:id', deleteData);
 
 
 
@@ -159,7 +235,6 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
 
     res.status(status).json(new ApiResponse(status, null, message));
 });
-
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT} [${NODE_ENV}]`);
