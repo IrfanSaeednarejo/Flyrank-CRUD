@@ -5,7 +5,9 @@
   "main": "app.js",
   "type": "module",
   "scripts": {
-    "server": "nodemon --env-file=.env app.js"
+    "server": "bun run app.ts",
+    "db:generate": "npx drizzle-kit generate",
+    "db:migrate": "npx drizzle-kit migrate"
   },
   "repository": {
     "type": "git",
@@ -20,5 +22,9 @@
   "dependencies": {
     "express": "^5.2.1",
     "swagger-ui-express": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/swagger-ui-express": "^4.1.8"
   }
 }
