@@ -1,8 +1,13 @@
 {
   "name": "connecting-to-the-database",
-  "module": "index.ts",
+  "module": "app.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev:server": "bun --watch run app.ts",
+    "db:generate": "bunx drizzle-kit generate",
+    "db:migrate": "bunx drizzle-kit migrate"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^26.6.2",
@@ -14,8 +19,14 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/morgan": "^1.9.10",
+    "cors": "^2.8.6",
     "dotenv": "^18.0.3",
     "drizzle-orm": "^0.45.3",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
+    "morgan": "^1.12.1",
     "pg": "^8.23.0"
   }
 }
