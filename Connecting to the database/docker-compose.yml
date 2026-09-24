@@ -1,0 +1,75 @@
+services:
+  # ─────────────────────────────────────────────
+  # Bun + Express API
+  # ─────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: task-api:dev
+    container_name: task-api
+    restart: unless-stopped
+
+    environment:
+      # Pulled from .env.docker (see File 4)
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_URL_POOLED: ${DATABASE_URL_POOLED:-}
+      PORT: 3000
+      NODE_ENV: ${NODE_ENV:-development}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+
+    ports:
+      - "3000:3000"
+
+    # env_file loads variables into the container's environment,
+    # but the `environment:` block above takes precedence for overrides.
+    env_file:
+      - .env.docker
+
+    # Run migrations before starting the server.
+    # `exec` so Bun becomes PID 1 and receives SIGTERM for graceful shutdown.
+    command: >
+      sh -c " echo 'Running Drizzle migrations...' && bunx drizzle-kit migrate && echo 'Starting server...' && exec bun run app.ts "
+
+    # If you later add a local Postgres service below, uncomment this:
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
+
+    networks:
+      - task-net
+    # Only override DNS for local Postgres. Remove if using Neon.
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+
+    # ─────────────────────────────────────────────
+    # OPTIONAL: Local Postgres (uncomment if you want
+    # a dev DB instead of Neon). Remember to update
+    # DATABASE_URL in .env.docker to point at `db`.
+    # ─────────────────────────────────────────────
+    #  db:
+    #    image: postgres:16-alpine
+    #    container_name: task-db
+    #    restart: unless-stopped
+    #    environment:
+    #      POSTGRES_USER: postgres
+    #      POSTGRES_PASSWORD: postgres
+    #      POSTGRES_DB: taskdb
+    #    ports:
+    #      - "5432:5432"
+    #    volumes:
+    #      - postgres_data:/var/lib/postgresql/data
+    #    healthcheck:
+    #      test: ["CMD-SHELL", "pg_isready -U postgres"]
+    #      interval: 5s
+    #      timeout: 5s
+    #      retries: 5
+    #    networks:
+    #      - task-net
+
+networks:
+  task-net:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
