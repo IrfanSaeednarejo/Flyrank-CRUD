@@ -1,13 +1,18 @@
 import { Handle, Position, type NodeProps } from "reactflow";
 import { cn } from "@/lib/utils";
 import type { WorkflowNode } from "@/schemas/workflow";
+import { useWorkflowStore } from "@/store/workflow";
+
 
 export function PromptNode({ id, data, selected }: NodeProps<WorkflowNode["data"]>) {
+
+    const isActive = useWorkflowStore((s) => s.activeNodeIds.includes(id));
     return (
         <div
             className={cn(
                 "min-w-[180px] max-w-[240px] rounded-lg border-2 bg-background px-3 py-2 shadow-sm transition",
-                selected ? "border-primary shadow-md" : "border-border"
+                selected ? "border-primary shadow-md" : "border-border",
+                isActive && "border-amber-400 ring-2 ring-amber-300/50 shadow-amber-200"
             )}
         >
             <Handle

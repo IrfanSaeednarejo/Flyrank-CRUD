@@ -6,6 +6,8 @@ import {
 } from "reactflow";
 import { cn } from "@/lib/utils";
 import type { Branch } from "@/schemas/workflow";
+import { useWorkflowStore } from "@/store/workflow";
+
 
 export function BranchEdge({
     id,
@@ -26,6 +28,7 @@ export function BranchEdge({
         targetY,
         targetPosition,
     });
+    const isActive = useWorkflowStore((s) => s.activeEdgeIds.includes(id));
 
     const isYes = data?.branch === "YES";
 
@@ -37,7 +40,9 @@ export function BranchEdge({
                 markerEnd={markerEnd}
                 style={{
                     stroke: isYes ? "#10b981" : "#f43f5e",
-                    strokeWidth: 2,
+                    strokeWidth: isActive ? 3 : 2,
+                    strokeDasharray: isActive ? "6 4" : undefined,
+                    animation: isActive ? "dash 0.6s linear infinite" : undefined,
                 }}
             />
             <EdgeLabelRenderer>

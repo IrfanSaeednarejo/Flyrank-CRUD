@@ -8,7 +8,7 @@
   "scripts": {
     "dev:client": "bun --cwd client dev",
     "dev:server": "bun --cwd server dev",
-    "dev:inngest": "bunx inngest-cli@latest dev -u http://localhost:3001/api/inngest",
+    "dev:inngest": "cmd /c npx --yes --ignore-scripts=false inngest-cli@latest dev -u http://localhost:3001/api/inngest",
     "dev": "concurrently -n client,server,inngest -c cyan,green,magenta \"bun dev:client\" \"bun dev:server\" \"bun dev:inngest\""
   },
   "devDependencies": {

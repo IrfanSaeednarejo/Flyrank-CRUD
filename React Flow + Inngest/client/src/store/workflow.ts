@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { startRun, pollRun, type TraceEntry } from "@/lib/api";
+
 import {
     addEdge,
     applyEdgeChanges,
@@ -19,6 +21,14 @@ type WorkflowState = {
     edges: WorkflowEdge[];
     selectedNodeId: string | null;
     startNodeId: string | null;
+    // add these to the state type
+    runStatus: "idle" | "running" | "done" | "error";
+    runTrace: TraceEntry[];
+    runError: string | null;
+    activeEdgeIds: string[];
+    activeNodeIds: string[];
+    runWorkflow: () => Promise<void>;
+    clearRun: () => void;
 
     // flow handlers
     onNodesChange: (changes: NodeChange[]) => void;
@@ -48,6 +58,61 @@ export const useWorkflowStore = create<WorkflowState>()(
             edges: [],
             selectedNodeId: null,
             startNodeId: null,
+            runStatus: "idle",
+            runTrace: [],
+            runError: null,
+            activeEdgeIds: [],
+            activeNodeIds: [],
+            clearRun: () =>
+                set({ runStatus: "idle", runTrace: [], runError: null, activeEdgeIds: [], activeNodeIds: [] }),
+
+            runWorkflow: async () => {
+                const { nodes, edges, startNodeId } = get();
+                if (!startNodeId) {
+                    set({ runError: "No start node set." });
+                    return;
+                }
+
+                set({ runStatus: "running", runTrace: [], runError: null, activeEdgeIds: [], activeNodeIds: [] });
+
+                try {
+                    const graph = { nodes, edges, startNodeId };
+                    const { runId } = await startRun(graph, startNodeId);
+                    const result = await pollRun(runId);
+
+                    if (result.status === "error") {
+                        set({ runStatus: "error", runError: result.error ?? "unknown error" });
+                        return;
+                    }
+
+                    const trace = result.trace ?? [];
+                    const activeNodeIds = trace.map((t) => t.nodeId);
+
+                    const activeEdgeIds: string[] = [];
+                    for (const t of trace) {
+                        if (!t.nextNodeId || !t.decision) continue;
+                        const edge = edges.find(
+                            (e) =>
+                                e.source === t.nodeId &&
+                                e.target === t.nextNodeId &&
+                                e.data.branch === t.decision
+                        );
+                        if (edge) activeEdgeIds.push(edge.id);
+                    }
+
+                    set({
+                        runStatus: "done",
+                        runTrace: trace,
+                        activeNodeIds,
+                        activeEdgeIds,
+                    });
+                } catch (err) {
+                    set({
+                        runStatus: "error",
+                        runError: err instanceof Error ? err.message : String(err),
+                    });
+                }
+            },
 
             onNodesChange: (changes) =>
                 set({ nodes: applyNodeChanges(changes, get().nodes) as WorkflowNode[] }),
@@ -117,7 +182,11 @@ export const useWorkflowStore = create<WorkflowState>()(
             setStartNode: (id) => set({ startNodeId: id }),
 
             clear: () =>
-                set({ nodes: [], edges: [], selectedNodeId: null, startNodeId: null }),
+                set({
+                    nodes: [], edges: [], selectedNodeId: null, startNodeId: null,
+                    runStatus: "idle", runTrace: [], runError: null,
+                    activeEdgeIds: [], activeNodeIds: [],
+                }),
 
             load: ({ nodes, edges }) =>
                 set({ nodes, edges, selectedNodeId: null, startNodeId: nodes[0]?.id ?? null }),

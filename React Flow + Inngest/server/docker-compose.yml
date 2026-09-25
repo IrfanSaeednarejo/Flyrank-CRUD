@@ -1,0 +1,9 @@
+services:
+  inngest:
+    image: inngest/inngest:latest
+    ports:
+      - "8288:8288"
+      - "8289:8289"
+    command: inngest dev -u http://host.docker.internal:3001/api/inngest
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
