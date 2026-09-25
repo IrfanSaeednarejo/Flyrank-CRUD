@@ -279,19 +279,21 @@ const signUp = asyncHandler(async (req: Request, res: Response) => {
 
 // GET /public/info
 const publicInfo = asyncHandler(async (_req: Request, res: Response) => {
-    return res.status(200).json({ message: "Welcome stranger! This info is public." });
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { message: 'Welcome stranger! This info is public.' }));
 });
 
 // GET /protected/profile
 const protectedProfile = asyncHandler(async (req: Request, res: Response) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: "Access token required" });
+        throw new ApiError(401, 'Access token required');
     }
 
     const token = authHeader.split(' ')[1];
     if (!token) {
-        return res.status(401).json({ error: "Access token required" });
+        throw new ApiError(401, 'Access token required');
     }
 
     // Returning 200 on success
@@ -333,6 +335,31 @@ const login = asyncHandler(async (req: Request, res: Response) => {
         .json(new ApiResponse(200, { session: data }, 'Login successful'));
 });
 
+// POST /auth/logout — sign out
+const logout = asyncHandler(async (_req: Request, res: Response) => {
+    const { error } = await auth.signOut();
+    if (error) {
+        throw new ApiError(500, error.message);
+    }
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { session: null }, 'Logged out successfully'));
+});
+
+// GET /auth/session — get current session (useful for testing)
+const getSession = asyncHandler(async (_req: Request, res: Response) => {
+    const { data, error } = await auth.api.getSession();
+
+    if (error) {
+        throw new ApiError(401, 'No valid session');
+    }
+
+    if (!data.session) {
+        throw new ApiError(401, 'No session found');
+    }
+
+    return res.status(200).json(new ApiResponse(200, { session: data.session }, 'Session retrieved'));
+});
 
 app.get('/tasks', getData);
 app.get('/tasks/:id', getDataById);
@@ -348,8 +375,8 @@ app.post('/auth/login', login);
 // custom endpoints
 app.get('/public/info', publicInfo);
 app.get('/protected/profile', protectedProfile);
-// app.post('/auth/logout', logout);
-// app.get('/auth/session', getSession);
+app.post('/auth/logout', logout);
+app.get('/auth/session', getSession);
 
 if (!isProd) {
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
