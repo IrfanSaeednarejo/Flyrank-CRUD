@@ -1,13 +1,18 @@
 import { useWorkflowStore } from "@/store/workflow";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 export function ExecutionLog() {
-    const status = useWorkflowStore((s) => s.runStatus);
-    const trace = useWorkflowStore((s) => s.runTrace);
+    const status = useWorkflowStore((s) => s.runStatus ?? "idle");
+    const trace = useWorkflowStore((s) => s.runTrace ?? []);
     const error = useWorkflowStore((s) => s.runError);
-    const runErrors = useWorkflowStore((s) => s.runErrors);
+    const runErrors = useWorkflowStore((s) => s.runErrors ?? []);
+    const retryFromNode = useWorkflowStore((s) => s.retryFromNode);
+    const retryingNodeId = useWorkflowStore((s) => s.retryingNodeId);
 
     if (status === "idle") return null;
+
+    const isRunning = status === "running";
 
     return (
         <div className="max-h-64 overflow-auto border-t bg-muted/20 p-3 text-sm">
@@ -16,13 +21,18 @@ export function ExecutionLog() {
                 <span
                     className={cn(
                         "rounded-full px-2 py-0.5 text-xs",
-                        status === "running" && "bg-amber-100 text-amber-700",
+                        isRunning && "bg-amber-100 text-amber-700",
                         status === "done" && "bg-emerald-100 text-emerald-700",
                         status === "error" && "bg-rose-100 text-rose-700"
                     )}
                 >
                     {status}
                 </span>
+                {retryingNodeId && (
+                    <span className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-700">
+                        retrying from {retryingNodeId}
+                    </span>
+                )}
                 {runErrors.length > 0 && (
                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs text-rose-700">
                         {runErrors.length} error{runErrors.length === 1 ? "" : "s"}
@@ -67,9 +77,18 @@ export function ExecutionLog() {
                         {t.nextNodeId ? (
                             <span className="text-muted-foreground">→ {t.nextNodeId}</span>
                         ) : t.error ? (
-                            <span className="truncate text-rose-700">
-                                — {t.error.message}
-                            </span>
+                            <>
+                                <span className="truncate text-rose-700">— {t.error.message}</span>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="ml-2 h-6 px-2 text-xs"
+                                    disabled={isRunning}
+                                    onClick={() => retryFromNode(t.nodeId)}
+                                >
+                                    Retry from here
+                                </Button>
+                            </>
                         ) : (
                             <span className="text-muted-foreground">(terminal)</span>
                         )}
@@ -80,9 +99,19 @@ export function ExecutionLog() {
             {runErrors.length > 0 && trace.every((t) => !t.error) && (
                 <ul className="mt-2 space-y-1 text-xs text-rose-700">
                     {runErrors.map((e, i) => (
-                        <li key={i}>
-                            <span className="font-semibold">{e.nodeId}</span> · {e.kind} ·{" "}
-                            {e.message}
+                        <li key={i} className="flex items-center gap-2">
+                            <span className="font-semibold">{e.nodeId}</span> · {e.kind} · {e.message}
+                            {e.nodeId !== "?" && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={isRunning}
+                                    onClick={() => retryFromNode(e.nodeId)}
+                                >
+                                    Retry
+                                </Button>
+                            )}
                         </li>
                     ))}
                 </ul>

@@ -34,6 +34,9 @@ type WorkflowState = {
     loadWorkflow: (workflow: Workflow) => void;
     runErrors: NodeError[];
     nodeErrors: Record<string, NodeError>;
+    retryingNodeId: string | null;
+    retryFromNode: (nodeId: string) => Promise<void>;
+    _executeFrom: (startNodeId: string, retryingNodeId: string | null) => Promise<void>;
 
     // flow handlers
     onNodesChange: (changes: NodeChange[]) => void;
@@ -70,6 +73,97 @@ export const useWorkflowStore = create<WorkflowState>()(
             activeNodeIds: [],
             runErrors: [],
             nodeErrors: {},
+            retryingNodeId: null,
+
+            runWorkflow: async () => {
+                const { startNodeId } = get();
+                if (!startNodeId) {
+                    set({ runError: "No start node set." });
+                    return;
+                }
+                await get()._executeFrom(startNodeId, null);
+            },
+
+            retryFromNode: async (nodeId: string) => {
+                await get()._executeFrom(nodeId, nodeId);
+            },
+
+            _executeFrom: async (startNodeId, retryingNodeId) => {
+                const { nodes, edges } = get();
+
+                set({
+                    runStatus: "running",
+                    runTrace: [],
+                    runError: null,
+                    runErrors: [],
+                    nodeErrors: {},
+                    activeEdgeIds: [],
+                    activeNodeIds: [],
+                    retryingNodeId,
+                });
+
+                try {
+                    const graph = { nodes, edges, startNodeId };
+                    const { runId } = await startRun(graph, startNodeId);
+                    const result = await pollRun(runId);
+
+                    const trace = result.trace ?? [];
+                    const activeNodeIds = trace.map((t) => t.nodeId);
+
+                    const activeEdgeIds: string[] = [];
+                    for (const t of trace) {
+                        if (!t.nextNodeId || !t.decision) continue;
+                        const edge = edges.find(
+                            (e) =>
+                                e.source === t.nodeId &&
+                                e.target === t.nextNodeId &&
+                                e.data.branch === t.decision
+                        );
+                        if (edge) activeEdgeIds.push(edge.id);
+                    }
+
+                    const runErrors = result.errors ?? [];
+                    const nodeErrors: Record<string, NodeError> = {};
+                    for (const e of runErrors) {
+                        nodeErrors[e.nodeId] = e;
+                    }
+
+                    if (result.status === "error") {
+                        set({
+                            runStatus: "error",
+                            runError: result.error ?? "unknown error",
+                            runTrace: trace,
+                            runErrors,
+                            nodeErrors,
+                            activeNodeIds,
+                            activeEdgeIds,
+                            retryingNodeId: null,
+                        });
+                        return;
+                    }
+
+                    set({
+                        runStatus: "done",
+                        runTrace: trace,
+                        runErrors,
+                        nodeErrors,
+                        activeNodeIds,
+                        activeEdgeIds,
+                        retryingNodeId: null,
+                    });
+                } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
+                    set({
+                        runStatus: "error",
+                        runError: message,
+                        runErrors: [
+                            { nodeId: "?", kind: "unknown", message, at: Date.now() },
+                        ],
+                        nodeErrors: {},
+                        retryingNodeId: null,
+                    });
+                }
+            },
             loadWorkflow: (workflow) =>
                 set({
                     nodes: workflow.nodes,
