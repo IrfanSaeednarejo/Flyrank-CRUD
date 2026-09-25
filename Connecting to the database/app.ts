@@ -277,6 +277,27 @@ const signUp = asyncHandler(async (req: Request, res: Response) => {
         ));
 });
 
+// GET /public/info
+const publicInfo = asyncHandler(async (_req: Request, res: Response) => {
+    return res.status(200).json({ message: "Welcome stranger! This info is public." });
+});
+
+// GET /protected/profile
+const protectedProfile = asyncHandler(async (req: Request, res: Response) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: "Access token required" });
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+        return res.status(401).json({ error: "Access token required" });
+    }
+
+    // Returning 200 on success
+    return res.status(200).json(new ApiResponse(200, { token }, 'Profile access granted'));
+});
+
 // POST /auth/login — sign in
 const login = asyncHandler(async (req: Request, res: Response) => {
     const { email, password } = req.body as {
@@ -323,6 +344,10 @@ app.delete('/tasks/:id', deleteData);
 // auth Routes
 app.post('/auth/signup', signUp);
 app.post('/auth/login', login);
+
+// custom endpoints
+app.get('/public/info', publicInfo);
+app.get('/protected/profile', protectedProfile);
 // app.post('/auth/logout', logout);
 // app.get('/auth/session', getSession);
 
