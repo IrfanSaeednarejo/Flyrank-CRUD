@@ -207,6 +207,112 @@ app.get('/health', (_req, res) => {
     res.status(200).json(new ApiResponse(200, { status: 'ok' }, 'Server is healthy'));
 });
 
+
+// AUTH ROUTES CONTROLLERS
+
+const signUp = asyncHandler(async (req: Request, res: Response) => {
+
+    const { fullName, email, password, department, bio, project } = req.body as {
+        fullName?: string,
+        email?: string,
+        password?: string,
+        department?: string,
+        bio?: string,
+        project?: string,
+    }
+
+    if (typeof fullName !== 'string' || fullName.trim().length === 0) {
+        throw new ApiError(400, 'Full name is required and must be a non-empty string');
+    }
+    if (typeof email !== 'string' || email.trim().length === 0) {
+        throw new ApiError(400, 'Email is required and must be a non-empty string');
+    }
+    if (typeof password !== 'string' || password.trim().length === 0) {
+        throw new ApiError(400, 'Password is required and must be a non-empty string');
+    }
+    if (typeof department !== 'string' || department.trim().length === 0) {
+        throw new ApiError(400, 'Department is required and must be a non-empty string');
+    }
+
+    const { data, error } = await auth.signUp.email({
+        email: email.trim(),
+        password,
+        name: fullName.trim(),
+        callbackURL: "http://localhost:3000"
+    });
+
+    if (error) {
+        throw new ApiError(500, error.message);
+    }
+
+    if (!data.user) {
+        throw new ApiError(500, 'User not created');
+    }
+
+
+
+    const userProfilePayload: insertUserProfile = {
+        userId: data.user?.id,
+        fullName: fullName.trim(),
+        department: department.trim(),
+        bio: bio?.trim(),
+        project: project?.trim(),
+    };
+
+    const [createdProfile] = await db
+        .insert(userProfiles)
+        .values(userProfilePayload)
+        .returning();
+
+    if (!createdProfile) {
+        throw new ApiError(500, 'User profile not created');
+    }
+
+    return res
+        .status(201)
+        .json(new ApiResponse(
+            201,
+            { user: data.user, profile: createdProfile },
+            'User profile created successfully'
+        ));
+});
+
+// POST /auth/login — sign in
+const login = asyncHandler(async (req: Request, res: Response) => {
+    const { email, password } = req.body as {
+        email?: string;
+        password?: string;
+    };
+
+    if (typeof email !== 'string' || !email.trim()) {
+        throw new ApiError(400, 'Email is required');
+    }
+    if (typeof password !== 'string' || !password) {
+        throw new ApiError(400, 'Password is required');
+    }
+
+    const { data, error } = await auth.signIn.email({
+        email: email.trim(),
+        password,
+    });
+
+    if (error) {
+        // Map Better Auth error codes to proper HTTP statuses
+        const statusMap: Record<string, number> = {
+            INVALID_EMAIL_OR_PASSWORD: 401,
+            USER_NOT_FOUND: 404,
+            TOO_MANY_REQUESTS: 429,
+        };
+        const status = statusMap[error.code] ?? 401;
+        throw new ApiError(status, error.message);
+    }
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { session: data }, 'Login successful'));
+});
+
+
 app.get('/tasks', getData);
 app.get('/tasks/:id', getDataById);
 app.get('/stats', getStats);
@@ -214,7 +320,11 @@ app.post('/tasks', setData);
 app.put('/tasks/:id', updateData);
 app.delete('/tasks/:id', deleteData);
 
-
+// auth Routes
+app.post('/auth/signup', signUp);
+app.post('/auth/login', login);
+// app.post('/auth/logout', logout);
+// app.get('/auth/session', getSession);
 
 if (!isProd) {
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
