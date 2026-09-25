@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { startRun, pollRun, type TraceEntry } from "@/lib/api";
+import type { NodeError } from "@/schemas/workflow";
 
 import {
     addEdge,
@@ -12,6 +13,7 @@ import {
 } from "reactflow";
 import type {
     Branch,
+    Workflow,
     WorkflowEdge,
     WorkflowNode,
 } from "@/schemas/workflow";
@@ -29,6 +31,9 @@ type WorkflowState = {
     activeNodeIds: string[];
     runWorkflow: () => Promise<void>;
     clearRun: () => void;
+    loadWorkflow: (workflow: Workflow) => void;
+    runErrors: NodeError[];
+    nodeErrors: Record<string, NodeError>;
 
     // flow handlers
     onNodesChange: (changes: NodeChange[]) => void;
@@ -63,6 +68,20 @@ export const useWorkflowStore = create<WorkflowState>()(
             runError: null,
             activeEdgeIds: [],
             activeNodeIds: [],
+            runErrors: [],
+            nodeErrors: {},
+            loadWorkflow: (workflow) =>
+                set({
+                    nodes: workflow.nodes,
+                    edges: workflow.edges,
+                    startNodeId: workflow.startNodeId,
+                    selectedNodeId: null,
+                    runStatus: "idle",
+                    runTrace: [],
+                    runError: null,
+                    activeEdgeIds: [],
+                    activeNodeIds: [],
+                }),
             clearRun: () =>
                 set({ runStatus: "idle", runTrace: [], runError: null, activeEdgeIds: [], activeNodeIds: [] }),
 
@@ -73,17 +92,20 @@ export const useWorkflowStore = create<WorkflowState>()(
                     return;
                 }
 
-                set({ runStatus: "running", runTrace: [], runError: null, activeEdgeIds: [], activeNodeIds: [] });
+                set({
+                    runStatus: "running",
+                    runTrace: [],
+                    runError: null,
+                    runErrors: [],
+                    nodeErrors: {},
+                    activeEdgeIds: [],
+                    activeNodeIds: [],
+                });
 
                 try {
                     const graph = { nodes, edges, startNodeId };
                     const { runId } = await startRun(graph, startNodeId);
                     const result = await pollRun(runId);
-
-                    if (result.status === "error") {
-                        set({ runStatus: "error", runError: result.error ?? "unknown error" });
-                        return;
-                    }
 
                     const trace = result.trace ?? [];
                     const activeNodeIds = trace.map((t) => t.nodeId);
@@ -100,16 +122,43 @@ export const useWorkflowStore = create<WorkflowState>()(
                         if (edge) activeEdgeIds.push(edge.id);
                     }
 
+                    // Build per-node error map
+                    const runErrors = result.errors ?? [];
+                    const nodeErrors: Record<string, NodeError> = {};
+                    for (const e of runErrors) {
+                        nodeErrors[e.nodeId] = e;
+                    }
+
+                    if (result.status === "error") {
+                        set({
+                            runStatus: "error",
+                            runError: result.error ?? "unknown error",
+                            runTrace: trace,
+                            runErrors,
+                            nodeErrors,
+                            activeNodeIds,
+                            activeEdgeIds,
+                        });
+                        return;
+                    }
+
                     set({
                         runStatus: "done",
                         runTrace: trace,
+                        runErrors,
+                        nodeErrors,
                         activeNodeIds,
                         activeEdgeIds,
                     });
                 } catch (err) {
+                    const message = err instanceof Error ? err.message : String(err);
                     set({
                         runStatus: "error",
-                        runError: err instanceof Error ? err.message : String(err),
+                        runError: message,
+                        runErrors: [
+                            { nodeId: "?", kind: "unknown", message, at: Date.now() },
+                        ],
+                        nodeErrors: {},
                     });
                 }
             },
@@ -191,6 +240,17 @@ export const useWorkflowStore = create<WorkflowState>()(
             load: ({ nodes, edges }) =>
                 set({ nodes, edges, selectedNodeId: null, startNodeId: nodes[0]?.id ?? null }),
         }),
-        { name: "workflow-store-v1" }
+        {
+            name: "workflow-store-v1",
+            version: 2,
+            migrate: (persisted: any) => {
+                // Ensure new fields exist with safe defaults.
+                return {
+                    ...persisted,
+                    runErrors: persisted?.runErrors ?? [],
+                    nodeErrors: persisted?.nodeErrors ?? {},
+                };
+            },
+        }
     )
 );

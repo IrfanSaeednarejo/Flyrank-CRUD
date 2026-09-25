@@ -34,6 +34,21 @@ export const RunRequestSchema = z.object({
     startNodeId: z.string().min(1, "startNodeId required"),
 });
 
+export const NodeErrorSchema = z.object({
+    nodeId: z.string(),
+    kind: z.enum([
+        "missing-api-key",
+        "llm-failed",
+        "invalid-decision",
+        "node-not-found",
+        "max-steps-exceeded",
+        "unknown",
+    ]),
+    message: z.string(),
+    at: z.number(), // timestamp
+});
+
+export type NodeError = z.infer<typeof NodeErrorSchema>;
 export type Workflow = z.infer<typeof WorkflowSchema>;
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;
 export type WorkflowEdge = z.infer<typeof WorkflowEdgeSchema>;

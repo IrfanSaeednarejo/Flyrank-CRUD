@@ -1,4 +1,5 @@
 import type { Workflow } from "@/schemas/workflow";
+import type { NodeError } from "@/schemas/workflow";
 
 const BASE = import.meta.env.VITE_SERVER_URL ?? "http://localhost:3001";
 
@@ -10,12 +11,15 @@ export type TraceEntry = {
     nextNodeId: string | null;
     startedAt: number;
     finishedAt: number;
+    error?: NodeError;
 };
+
 
 export type RunRecord = {
     id: string;
     status: "queued" | "done" | "error";
     trace?: TraceEntry[];
+    errors?: NodeError[];
     error?: string;
 };
 
@@ -25,7 +29,13 @@ export async function startRun(graph: Workflow, startNodeId: string) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ graph, startNodeId }),
     });
-    if (!res.ok) throw new Error(`run failed: ${res.status}`);
+
+    if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(
+            `Server rejected the run (${res.status}). ${body.slice(0, 200)}`
+        );
+    }
     return (await res.json()) as { runId: string };
 }
 

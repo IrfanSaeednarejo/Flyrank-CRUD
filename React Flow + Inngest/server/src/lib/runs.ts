@@ -1,9 +1,12 @@
+import type { NodeError } from "../schemas/workflow";
+
 export type RunStatus = "queued" | "done" | "error";
 
 export type RunRecord = {
     id: string;
     status: RunStatus;
     trace?: unknown;
+    errors?: NodeError[];
     error?: string;
     createdAt: number;
 };

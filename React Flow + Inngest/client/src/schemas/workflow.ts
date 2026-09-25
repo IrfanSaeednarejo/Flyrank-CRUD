@@ -30,6 +30,14 @@ export const WorkflowSchema = z.object({
     startNodeId: z.string().nullable(),
 });
 
+export const WorkflowFileSchema = z.object({
+    kind: z.literal("ai-workflow"),
+    version: z.literal(1),
+    exportedAt: z.string(),
+    workflow: WorkflowSchema,
+});
+
+export type WorkflowFile = z.infer<typeof WorkflowFileSchema>;
 export type NodeData = z.infer<typeof NodeDataSchema>;
 export type WorkflowNode = z.infer<typeof WorkflowNodeSchema>;
 export type WorkflowEdge = z.infer<typeof WorkflowEdgeSchema>;

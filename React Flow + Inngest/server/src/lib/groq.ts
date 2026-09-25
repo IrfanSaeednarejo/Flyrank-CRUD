@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import { NodeError } from "../schemas/workflow";
 
 export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
@@ -8,7 +9,14 @@ export const GROQ_MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-20b";
 
 export type Decision = "YES" | "NO";
 
-
+export class GroqDecideError extends Error {
+  kind: NodeError["kind"];
+  constructor(kind: NodeError["kind"], message: string) {
+    super(message);
+    this.name = "GroqDecideError";
+    this.kind = kind;
+  }
+}
 export async function decide(prompt: string): Promise<Decision> {
   const res = await groq.chat.completions.create({
     model: GROQ_MODEL,
