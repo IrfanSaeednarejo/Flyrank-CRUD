@@ -20,6 +20,7 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
+    "@neondatabase/auth": "^0.5.0-beta",
     "@types/cors": "^2.8.19",
     "@types/morgan": "^1.9.10",
     "cors": "^2.8.6",

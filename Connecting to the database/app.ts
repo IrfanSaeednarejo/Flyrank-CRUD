@@ -18,6 +18,13 @@ import {
     type updateTask,
 } from './src/db/schema/tasks.ts';
 import openapiSpec from './openapi.json' with { type: 'json' };
+import { auth } from './src/db/auth/auth.ts';
+import {
+    userProfiles,
+    type insertUserProfile,
+    type selectUserProfile,
+    type updateUserProfile,
+} from './src/db/schema/userProfile.ts';
 
 // ─────────────────────────────────────────────
 // App + Config
