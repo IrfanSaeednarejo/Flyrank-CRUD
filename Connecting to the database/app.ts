@@ -25,6 +25,7 @@ import {
     type selectUserProfile,
     type updateUserProfile,
 } from './src/db/schema/userProfile.ts';
+import { requireAuth } from './Utils/authMiddleware.ts';
 
 // ─────────────────────────────────────────────
 // App + Config
@@ -39,8 +40,15 @@ app.set('trust proxy', 1); // correct client IPs behind reverse proxies
 // ─────────────────────────────────────────────
 // Global middleware
 // ─────────────────────────────────────────────
-app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN?.split(',') ?? '*' }));
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
+app.use(cors({
+    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000', 'http://localhost:5173'],
+    credentials: true,
+}));
+
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 app.use(morgan(isProd ? 'combined' : 'dev'));
@@ -265,6 +273,10 @@ const signUp = asyncHandler(async (req: Request, res: Response) => {
         .returning();
 
     if (!createdProfile) {
+        // Attempt to delete the auth user to avoid orphan
+        try {
+            await auth.signOut();
+        } catch { }
         throw new ApiError(500, 'User profile not created');
     }
 
@@ -286,18 +298,15 @@ const publicInfo = asyncHandler(async (_req: Request, res: Response) => {
 
 // GET /protected/profile
 const protectedProfile = asyncHandler(async (req: Request, res: Response) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new ApiError(401, 'Access token required');
-    }
+    const user = (req as any).user;
+    const [profile] = await db
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id));
 
-    const token = authHeader.split(' ')[1];
-    if (!token) {
-        throw new ApiError(401, 'Access token required');
-    }
-
-    // Returning 200 on success
-    return res.status(200).json(new ApiResponse(200, { token }, 'Profile access granted'));
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { user, profile: profile ?? null }, 'Profile access granted'));
 });
 
 // POST /auth/login — sign in
@@ -317,16 +326,17 @@ const login = asyncHandler(async (req: Request, res: Response) => {
     const { data, error } = await auth.signIn.email({
         email: email.trim(),
         password,
+        callbackURL: "http://localhost:3000"
     });
 
     if (error) {
-        // Map Better Auth error codes to proper HTTP statuses
         const statusMap: Record<string, number> = {
-            INVALID_EMAIL_OR_PASSWORD: 401,
-            USER_NOT_FOUND: 404,
-            TOO_MANY_REQUESTS: 429,
+            USER_ALREADY_EXISTS: 409,
+            INVALID_EMAIL: 400,
+            WEAK_PASSWORD: 400,
+            INVALID_PASSWORD: 400,
         };
-        const status = statusMap[error.code] ?? 401;
+        const status = statusMap[error.code] ?? 400;
         throw new ApiError(status, error.message);
     }
 
@@ -335,30 +345,25 @@ const login = asyncHandler(async (req: Request, res: Response) => {
         .json(new ApiResponse(200, { session: data }, 'Login successful'));
 });
 
-// POST /auth/logout — sign out
+// POST /auth/logout
 const logout = asyncHandler(async (_req: Request, res: Response) => {
-    const { error } = await auth.signOut();
-    if (error) {
-        throw new ApiError(500, error.message);
-    }
+    const result = await auth.signOut();
     return res
         .status(200)
-        .json(new ApiResponse(200, { session: null }, 'Logged out successfully'));
+        .json(new ApiResponse(200, null, 'Logged out successfully'));
 });
 
-// GET /auth/session — get current session (useful for testing)
+// GET /auth/session
 const getSession = asyncHandler(async (_req: Request, res: Response) => {
-    const { data, error } = await auth.api.getSession();
+    const session = await auth.getSession();
 
-    if (error) {
+    if (!session) {
         throw new ApiError(401, 'No valid session');
     }
 
-    if (!data.session) {
-        throw new ApiError(401, 'No session found');
-    }
-
-    return res.status(200).json(new ApiResponse(200, { session: data.session }, 'Session retrieved'));
+    return res
+        .status(200)
+        .json(new ApiResponse(200, { session }, 'Session retrieved'));
 });
 
 app.get('/tasks', getData);
@@ -374,9 +379,9 @@ app.post('/auth/login', login);
 
 // custom endpoints
 app.get('/public/info', publicInfo);
-app.get('/protected/profile', protectedProfile);
-app.post('/auth/logout', logout);
-app.get('/auth/session', getSession);
+app.get('/protected/profile', requireAuth, protectedProfile);
+app.post('/auth/logout', requireAuth, logout);
+app.get('/auth/session', requireAuth, getSession);
 
 if (!isProd) {
     app.use('/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec));
